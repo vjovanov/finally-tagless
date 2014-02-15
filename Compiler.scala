@@ -1,13 +1,15 @@
 // Our Trees
 sealed trait Exp
 
+sealed trait Value extends Exp
+
 // Placeholder to pose variables
 class PH extends Exp
 
 // De-Brujin encoded var
 case class Var(n: Int) extends Exp
-case class Cst(v: Any) extends Exp
-case class Lam(f: Exp) extends Exp
+case class Cst(v: Any) extends Value
+case class Lam(f: Exp) extends Value
 // Note that a fix is also a lambda for De-Brujin
 case class Fix(f: Exp) extends Exp
 case class App(f: Exp, v: Exp) extends Exp
@@ -39,65 +41,88 @@ object C extends Symantics {
     Fix(resolvePH(ph, f(() => ph)))
   }
 
-  /** increase count in De-Brujin vars */
+  override def hole[D,S](x: =>Repr[D,S]): Repr[D,S] = Hole(x)
+
+
+  def eval[T](exp: Repr[T,T]): T = (reduce(exp) match {
+    case Cst(i) => i
+    case Lam(f) => sys.error("evaling lambdas not supported")
+  }).asInstanceOf[T]
+
+  /** big step reduction */
+  private def reduce(exp: Exp): Value = exp match {
+    case v: Value => v
+    case App(fun, arg) => reduce(fun) match {
+      case Lam(body) =>
+        // We do lazy eval
+        reduce(subst(body, arg))
+      case _ => stuck
+    }
+    case If(c, t, e) => reduce(c) match {
+      case Cst(true)  => reduce(t)
+      case Cst(false) => reduce(e)
+      case _ => stuck
+    }
+    case Add(l, r) => (reduce(l), reduce(r)) match {
+      case (Cst(x: Int), Cst(y: Int)) => Cst(x + y)
+      case _ => stuck
+    }
+    case Mul(l, r) => (reduce(l), reduce(r)) match {
+      case (Cst(x: Int), Cst(y: Int)) => Cst(x * y)
+      case _ => stuck
+    }
+    case Leq(l, r) => (reduce(l), reduce(r)) match {
+      case (Cst(x: Int), Cst(y: Int)) => Cst(x <= y)
+      case _ => stuck
+    }
+    case Fix(body) =>
+      // Lazily replace ourselves
+      reduce(subst(body, exp))
+    case Hole(x) => reduce(x)
+    case Var(_)  => sys.error("Unbound variable. You die!")
+    case _: PH   => sys.error("Unbound placeholder. You die!")
+  }
+
+  private def stuck = sys.error("stuck. you die!")
+
   private def resolvePH(ph: PH, e: Exp): Exp =
     new VarResolveTransformer(ph).transform(e)
 
-  /** decrease count in De-Brujin vars */
-  private def popVar(body: Exp, v: Exp) =
-    new VarPopTransformer(v).transform(body)
+  private def subst(body: Exp, v: Exp) =
+    new VarSubstTransformer(v).transform(body)
 
-
-  override def hole[D,S](x: =>Repr[D,S]): Repr[D,S] = Hole(x)
-
-  def eval[T](exp: Repr[T,T]): T = (exp match {
-    case Cst(i) => i
-    case App(fun, arg) =>
-      // We do lazy eval
-      eval[T](popVar(fun, arg))
-    case Lam(body) => eval[T](body)
-    case If(c, t, e) => if (eval[Boolean](c)) eval(t) else eval(e)
-    case Add(l, r) => eval[Int](l) + eval[Int](l)
-    case Mul(l, r) => eval[Int](l) * eval[Int](l)
-    case Leq(l, r) => eval[Int](l) <= eval[Int](r)
-    case Fix(f) => ???
-    case Hole(x) => eval(x)
-    case Var(_)  => sys.error("Unbound variable. You die!")
-    case _: PH   => sys.error("Unbound placeholder. You die!")
-  }).asInstanceOf[T]
-
-  class VarPopTransformer(val v: Exp) extends Transformer {
+  private class VarSubstTransformer(val v: Exp) extends Transformer {
     override def transform(e: Exp) = e match {
-      case Var(0) => super.transform(v)
-      case Var(i) => Var(i-1)
-      case _ => super.transform(e)
-    }
-  }
-
-  class VarResolveTransformer(ph: PH) extends Transformer {
-    var depth = 0
-    override def transform(e: Exp) = e match {
-      case `ph`   => Var(depth)
-      case Lam(_) | Fix(_) =>
-        descend { super.transform(e) }
+      case Var(i) if i == depth =>
+        super.transform(v)
       case _ =>
         super.transform(e)
     }
+  }
 
-    private def descend[T](body: =>T) = {
+  private class VarResolveTransformer(ph: PH) extends Transformer {
+    override def transform(e: Exp) = e match {
+      case `ph`   => Var(depth)
+      case _ =>
+        super.transform(e)
+    }
+  }
+
+  private class Transformer {
+    var depth = 0
+
+    protected def descend[T](body: =>T) = {
       depth += 1
       val res = body
       depth -= 1
       res
     }
-  }
 
-  class Transformer {
     def transform(e: Exp): Exp = e match {
       case Var(_) | Cst(_) | _ :PH => e
-      case Lam(f)          => Lam(transform(f))
+      case Lam(f)          => descend { Lam(transform(f)) }
       case App(fun, body)  => App(transform(fun), transform(body))
-      case Fix(f)          => Fix(transform(f))
+      case Fix(f)          => descend { Fix(transform(f)) }
       case If(c,t,e)       => If(transform(c), transform(t), transform(e))
       case Add(lhs, rhs)   => Add(transform(lhs), transform(rhs))
       case Mul(lhs, rhs)   => Mul(transform(lhs), transform(rhs))

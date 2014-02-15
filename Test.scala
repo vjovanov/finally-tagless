@@ -46,8 +46,12 @@ object Test extends scala.App {
     import c._
     val id = ident(c)
     val mid = meanIdent(c)(4)
-    app(mapFact(c)(id)(id))(int(6))
+    app(mapFact(c)(mid)(mid))(int(6))
   }
 
-  println(testFix(R))
+  val fProg = testFix(C)
+
+  println(fProg)
+  println(C.eval(fProg))
+  println(R.eval(testFix(R)))
 }
