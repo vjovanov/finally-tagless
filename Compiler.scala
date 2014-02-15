@@ -1,28 +1,29 @@
-// Our Trees
-sealed trait Exp
-
-sealed trait Value extends Exp
-
-// Placeholder to pose variables
-class PH extends Exp
-
-// De-Brujin encoded var
-case class Var(n: Int) extends Exp
-case class Cst(v: Any) extends Value
-case class Lam(f: Exp) extends Value
-// Note that a fix is also a lambda for De-Brujin
-case class Fix(f: Exp) extends Exp
-case class App(f: Exp, v: Exp) extends Exp
-case class If(c: Exp, t: Exp, e: Exp) extends Exp
-case class Add(lhs: Exp, rhs: Exp) extends Exp
-case class Mul(lhs: Exp, rhs: Exp) extends Exp
-case class Leq(lhs: Exp, rhs: Exp) extends Exp
-// Dummy class to show holes in AST
-case class Hole(x: Exp) extends Exp {
-  override def toString = s"[$x]"
-}
-
 object C extends Symantics {
+
+  // Our Trees
+  sealed trait Exp
+  
+  sealed trait Value extends Exp
+  
+  // Placeholder to pose variables
+  class PH extends Exp
+  
+  // De-Brujin encoded var
+  case class Var(n: Int) extends Exp
+  case class Cst(v: Any) extends Value
+  case class Lam(f: Exp) extends Value
+  // Note that a fix is also a lambda for De-Brujin
+  case class Fix(f: Exp) extends Exp
+  case class App(f: Exp, v: Exp) extends Exp
+  case class If(c: Exp, t: Exp, e: Exp) extends Exp
+  case class Add(lhs: Exp, rhs: Exp) extends Exp
+  case class Mul(lhs: Exp, rhs: Exp) extends Exp
+  case class Leq(lhs: Exp, rhs: Exp) extends Exp
+  // Dummy class to show holes in AST
+  case class Hole(x: Exp) extends Exp {
+    override def toString = s"[$x]"
+  }
+
   type Repr[D,S] = Exp
   def int(c: Int): Repr[Int,Int] = Cst(c)
   def bool(c: Boolean): Repr[Boolean,Boolean] = Cst(c)
@@ -46,7 +47,8 @@ object C extends Symantics {
 
   def eval[T](exp: Repr[T,T]): T = (reduce(exp) match {
     case Cst(i) => i
-    case Lam(f) => sys.error("evaling lambdas not supported")
+    case _ =>
+      sys.error("Wont happen. Repr of a lambda does not have right signature")
   }).asInstanceOf[T]
 
   /** big step reduction */
