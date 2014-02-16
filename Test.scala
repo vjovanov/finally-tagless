@@ -49,9 +49,9 @@ object Test extends scala.App {
     app(mapFact(c)(mid)(mid))(int(6))
   }
 
-  val fProg = testFix(C)
+  val fProg = testFix(P)
 
   println(fProg)
-  println(C.eval(fProg))
+  println(P.eval(fProg))
   println(R.eval(testFix(R)))
 }

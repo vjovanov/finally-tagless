@@ -1,5 +1,7 @@
 object P extends Symantics {
 
+  val maxFixEvalDepth = 10
+
   case class Repr[D,S](val c: C.Repr[D,D], val r: Option[R.Repr[S,S]]) {
     override def toString = r match {
       case Some(r) => s"Folded : $r"
@@ -60,7 +62,19 @@ object P extends Symantics {
       repr(C.leq(lhs.c, rhs.c))
   }
 
-  def fix[A,B](f: (() => RLam[A,B]) => RLam[A,B]): RLam[A,B] = ???
+  def fix[A,B](f: (() => RLam[A,B]) => RLam[A,B]): RLam[A,B] = {
+    def self(d: Int): RLam[A,B] = {
+      if (d <= maxFixEvalDepth)
+        f(() => self(d+1))
+      else {
+        val cfix = C.fix[A,B] { cSelf =>
+          f(() => repr(cSelf())).c 
+        }
+        repr(cfix)
+      }
+    }
+    self(0)
+  }
 
   def eval[T](exp: Repr[T,T]): T = exp.r getOrElse { C.eval(exp.c) }
   override def hole[D,S](exp: =>Repr[D,S]): Repr[D,S] = {
