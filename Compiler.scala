@@ -1,28 +1,45 @@
 object C extends Symantics {
 
   // Our Trees
-  sealed trait Exp
+  sealed trait Exp {
+    val prec: Int
+    override def toString = this match {
+      case Var(i) => s"v$i"
+      case Cst(v) => v.toString
+      case Lam(f) => s"(λ $f)"
+      case Fix(f) => s"(θ $f)"
+      case App(f, v) => s"${wrp(f)} ${wrp(v)}"
+      case If(c,t,e) => s"if $c then $t else $e"
+      case Add(l,r) => s"${wrp(l)} + ${wrp(r)}"
+      case Mul(l,r) => s"${wrp(l)} * ${wrp(r)}"
+      case Leq(l,r) => s"${wrp(l)} <= ${wrp(r)}"
+      case Hole(x) => s"[$x]"
+      case _: PH => "PH"
+    }
+    def wrp(x: Exp) =
+      if (this.prec > x.prec) s"($x)"
+      else x.toString
+  }
   
+  sealed trait Single extends Exp { val prec = Int.MaxValue }
   sealed trait Value extends Exp
   
   // Placeholder to pose variables
-  class PH extends Exp
+  class PH extends Single
   
   // De-Brujin encoded var
-  case class Var(n: Int) extends Exp
-  case class Cst(v: Any) extends Value
-  case class Lam(f: Exp) extends Value
+  case class Var(n: Int) extends Single
+  case class Cst(v: Any) extends Value with Single
+  case class Lam(f: Exp) extends Value with Single
   // Note that a fix is also a lambda for De-Brujin
-  case class Fix(f: Exp) extends Exp
-  case class App(f: Exp, v: Exp) extends Exp
-  case class If(c: Exp, t: Exp, e: Exp) extends Exp
-  case class Add(lhs: Exp, rhs: Exp) extends Exp
-  case class Mul(lhs: Exp, rhs: Exp) extends Exp
-  case class Leq(lhs: Exp, rhs: Exp) extends Exp
+  case class Fix(f: Exp) extends Single
+  case class App(f: Exp, v: Exp) extends Exp { val prec = 4 }
+  case class If(c: Exp, t: Exp, e: Exp) extends Exp { val prec = 0 }
+  case class Add(lhs: Exp, rhs: Exp) extends Exp { val prec = 2 }
+  case class Mul(lhs: Exp, rhs: Exp) extends Exp { val prec = 3 }
+  case class Leq(lhs: Exp, rhs: Exp) extends Exp { val prec = 1 }
   // Dummy class to show holes in AST
-  case class Hole(x: Exp) extends Exp {
-    override def toString = s"[$x]"
-  }
+  case class Hole(x: Exp) extends Single
 
   type Repr[D,S] = Exp
   def int(c: Int): Repr[Int,Int] = Cst(c)

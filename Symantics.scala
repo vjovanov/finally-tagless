@@ -23,4 +23,16 @@ trait Symantics {
   def hole[D,S](exp: =>Repr[D,S]): Repr[D,S] = exp
 
   def eval[T](exp: Repr[T,T]): T
+
+  object DSL {
+    implicit class IntOps(val lhs: Repr[Int,Int]) {
+      def +(rhs: Repr[Int,Int]) = add(lhs, rhs)
+      def *(rhs: Repr[Int,Int]) = mul(lhs, rhs)
+      def <=(rhs: Repr[Int,Int]) = leq(lhs, rhs)
+    }
+    
+    implicit class FunOps[A,B](val f: RLam[A,B]) {
+      def apply(v: Repr[A,A]) = app(f)(v)
+    }
+  }
 }

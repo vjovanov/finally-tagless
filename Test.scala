@@ -23,10 +23,11 @@ object Test extends scala.App {
   /** a factorial function that maps before multiplication */
   def mapFact(c: Symantics)(cMap: c.RLam[Int,Int])(vMap: c.RLam[Int,Int]) = {
     import c._
-    fix[Int,Int] ( self =>
+    import DSL._
+    fix[Int,Int]( self =>
       lam[Int,Int](n =>
-        _if(leq(app(cMap)(n),int(0))) { int(1) } {
-          mul(app(vMap)(n), app(self())(add(n, int(-1))))
+        _if(cMap(n) <= int(0)) { int(1) } {
+          vMap(n) * self()(n + int(-1))
         }
       )
     )
@@ -34,19 +35,27 @@ object Test extends scala.App {
 
   def ident(c: Symantics) = c.lam[Int,Int](n => n)
 
-  /** an identity that inserts holes below a given value */
-  def meanIdent(c: Symantics)(holeBelow: Int) = {
+  def holeAbove(c: Symantics)(v: Int) = {
+    import c._
+    import DSL._
+    lam[Int,Int](n =>
+      _if(int(v) <= n)(hole(n))(n)
+    )
+  }
+
+  def holeBelow(c: Symantics)(v: Int) = {
     import c._
     lam[Int,Int](n =>
-      _if(leq(n, int(holeBelow)))(hole(n))(n)
+      _if(leq(int(v),n))(n)(hole(n))
     )
   }
 
   def testFix(c: Symantics) = {
     import c._
     val id = ident(c)
-    val mid = meanIdent(c)(4)
-    app(mapFact(c)(mid)(mid))(int(6))
+    val abid = holeAbove(c)(6)
+    val beid = holeBelow(c)(5)
+    app(mapFact(c)(abid)(abid))(int(7))
   }
 
   val fProg = testFix(P)
